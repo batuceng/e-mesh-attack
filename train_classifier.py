@@ -3,7 +3,7 @@ import os
 import numpy as np
 import random
 
-from dataset.coma3 import Coma
+from dataset.coma2 import Coma
 from torch.utils.data import DataLoader
 from classifiers import DGCNN_cls, PointNet2_cls, PointNet_cls, PCT_cls, PointMLP_cls, CurveNet_cls
 

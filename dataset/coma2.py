@@ -27,22 +27,20 @@ LABELS = ['bareteeth', 'cheeks_in', 'eyebrow', 'high_smile',
           'lips_back', 'lips_up', 'mouth_down', 'mouth_extreme',
           'mouth_middle', 'mouth_open', 'mouth_side', 'mouth_up']
 LABEL_STR2INT = {label:i for i,label in enumerate(LABELS)}
-TRAIN_SET = [
-    'FaceTalk_170725_00137_TA', 'FaceTalk_170725_00137_TA_n1', 'FaceTalk_170725_00137_TA_p1',
-    'FaceTalk_170728_03272_TA', 'FaceTalk_170728_03272_TA_n1', 'FaceTalk_170728_03272_TA_p1',
-    'FaceTalk_170731_00024_TA', 'FaceTalk_170731_00024_TA_n1', 'FaceTalk_170731_00024_TA_p1',
-    'FaceTalk_170809_00138_TA', 'FaceTalk_170809_00138_TA_n1', 'FaceTalk_170809_00138_TA_p1',
-    'FaceTalk_170811_03274_TA', 'FaceTalk_170811_03274_TA_n1', 'FaceTalk_170811_03274_TA_p1',
-    'FaceTalk_170811_03275_TA', 'FaceTalk_170811_03275_TA_n1', 'FaceTalk_170811_03275_TA_p1',
-    'FaceTalk_170908_03277_TA', 'FaceTalk_170908_03277_TA_n1', 'FaceTalk_170908_03277_TA_p1',
-    'FaceTalk_170912_03278_TA', 'FaceTalk_170912_03278_TA_n1', 'FaceTalk_170912_03278_TA_p1',
-    'FaceTalk_170913_03279_TA', 'FaceTalk_170913_03279_TA_n1', 'FaceTalk_170913_03279_TA_p1',
-    'FaceTalk_170915_00223_TA', 'FaceTalk_170915_00223_TA_n1', 'FaceTalk_170915_00223_TA_p1'
-]
-TEST_SET = [
-    'FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk_170904_00128_TA_p1',
-    'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_p1',
-]
+
+TRAIN_SET = ['FaceTalk_170725_00137_TA', 'FaceTalk_170725_00137_TA_n1', 'FaceTalk_170725_00137_TA_n2', 'FaceTalk_170725_00137_TA_n3', 'FaceTalk_170725_00137_TA_n4',
+             'FaceTalk_170728_03272_TA', 'FaceTalk_170728_03272_TA_n1', 'FaceTalk_170728_03272_TA_n2', 'FaceTalk_170728_03272_TA_n3', 'FaceTalk_170728_03272_TA_n4',
+             'FaceTalk_170731_00024_TA', 'FaceTalk_170731_00024_TA_n1', 'FaceTalk_170731_00024_TA_n2', 'FaceTalk_170731_00024_TA_n3', 'FaceTalk_170731_00024_TA_n4',
+             'FaceTalk_170809_00138_TA', 'FaceTalk_170809_00138_TA_n1', 'FaceTalk_170809_00138_TA_n2', 'FaceTalk_170809_00138_TA_p1', 'FaceTalk_170809_00138_TA_p2',
+             'FaceTalk_170811_03274_TA', 'FaceTalk_170811_03274_TA_n1', 'FaceTalk_170811_03274_TA_n2', 'FaceTalk_170811_03274_TA_n3', 'FaceTalk_170811_03274_TA_n4',
+             'FaceTalk_170811_03275_TA', 'FaceTalk_170811_03275_TA_n1', 'FaceTalk_170811_03275_TA_n2', 'FaceTalk_170811_03275_TA_n3', 'FaceTalk_170811_03275_TA_n4',
+             'FaceTalk_170908_03277_TA', 'FaceTalk_170908_03277_TA_n1', 'FaceTalk_170908_03277_TA_n2', 'FaceTalk_170908_03277_TA_n3', 'FaceTalk_170908_03277_TA_n4',
+             'FaceTalk_170912_03278_TA', 'FaceTalk_170912_03278_TA_n1', 'FaceTalk_170912_03278_TA_n2', 'FaceTalk_170912_03278_TA_n3', 'FaceTalk_170912_03278_TA_n4',
+             'FaceTalk_170913_03279_TA', 'FaceTalk_170913_03279_TA_n1', 'FaceTalk_170913_03279_TA_n2', 'FaceTalk_170913_03279_TA_n3', 'FaceTalk_170913_03279_TA_n4',
+             'FaceTalk_170915_00223_TA', 'FaceTalk_170915_00223_TA_n1', 'FaceTalk_170915_00223_TA_n2', 'FaceTalk_170915_00223_TA_n3', 'FaceTalk_170915_00223_TA_n4']
+
+TEST_SET = ['FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk_170904_00128_TA_n2', 'FaceTalk_170904_00128_TA_n3', 'FaceTalk_170904_00128_TA_n4',
+             'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_n2', 'FaceTalk_170904_03276_TA_n3', 'FaceTalk_170904_03276_TA_n4']
 
 def translate_pointcloud(pointcloud):
     xyz1 = (3./2. - 2./3) * torch.rand(3, dtype=pointcloud.dtype) + 2./3
@@ -69,7 +67,7 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/home/robust/e-mesh-attack/old_stufff/coma_expanded_1")
+    DATA_DIR = os.path.abspath("/home/robust/e-mesh-attack/old_stufff/coma_expanded_2")
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for folder in selected_set:
