@@ -50,8 +50,8 @@ class CurveNet(nn.Module):
         self.dp1 = nn.Dropout(p=0.5)
         
         # Load 
-        self.load_pretrained()
-        self.eval()
+        # self.load_pretrained()
+        # self.eval()
 
 
     def forward(self, xyz):

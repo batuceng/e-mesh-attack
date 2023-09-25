@@ -63,8 +63,8 @@ model_dict = {
 }
 
 MAX_EPOCH = 1000
-trainloader = DataLoader(dataset=Coma(partition='train'), batch_size=1, shuffle=True, num_workers=2)
-testloader = DataLoader(dataset=Coma(partition='test'), batch_size=1)
+trainloader = DataLoader(dataset=Coma(partition='train'), batch_size=1, shuffle=True, num_workers=4)
+testloader = DataLoader(dataset=Coma(partition='test'), batch_size=1, num_workers=4)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model_dict[args.model]().to(device)
 

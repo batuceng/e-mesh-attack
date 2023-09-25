@@ -38,8 +38,8 @@ class PointNet2_cls(nn.Module):
         self.fc3 = nn.Linear(256, num_class)
         
         # Load
-        self.load_pretrained()
-        self.eval()
+        # self.load_pretrained()
+        # self.eval()
 
     def forward(self, xyz):
         B, _, _ = xyz.shape

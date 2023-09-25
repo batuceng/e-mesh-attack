@@ -1,0 +1,4 @@
+pointnet2 -> device 0
+pointnet -> device 2
+pct -> device 2
+pointmlp -> device 3

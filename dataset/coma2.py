@@ -43,7 +43,7 @@ TEST_SET = ['FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk
              'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_n2', 'FaceTalk_170904_03276_TA_n3', 'FaceTalk_170904_03276_TA_n4']
 
 def translate_pointcloud(pointcloud):
-    xyz1 = (3./2. - 2./3) * torch.rand(1, dtype=pointcloud.dtype) + 2./3
+    xyz1 = (3./2. - 2./3) * torch.rand(3, dtype=pointcloud.dtype) + 2./3
     xyz2 = (0.2 - (-0.2)) * torch.rand(3, dtype=pointcloud.dtype) + (-0.2)
     
     translated_pointcloud = torch.add(pointcloud*xyz1, xyz2)
@@ -67,7 +67,7 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/home/robust/e-mesh-attack/old_stufff/coma_expanded_2")
+    DATA_DIR = os.path.abspath("/mnt/data/yusuf/e-mesh-attack/coma_expanded_2")
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for folder in selected_set:
@@ -158,11 +158,11 @@ class Coma(Dataset):
         return len(self.all_data)
     
 
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
     
-    dataset = Coma()
+#     dataset = Coma()
     
-    item = dataset[5]
+#     item = dataset[5]
         
-    np.save("/home/robust/e-mesh-attack/data_attacked/e-mesh-central/all_data_5.npy", item)
+#     np.save("/home/robust/e-mesh-attack/data_attacked/e-mesh-central/all_data_5.npy", item)

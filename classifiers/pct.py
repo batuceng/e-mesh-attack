@@ -55,8 +55,8 @@ class Pct(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
 
         # Load 
-        self.load_pretrained()
-        self.eval()
+        # self.load_pretrained()
+        # self.eval()
 
 
     def forward(self, x):
