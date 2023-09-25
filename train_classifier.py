@@ -98,6 +98,12 @@ for epoch in range(MAX_EPOCH):
     train_running_loss = 0
     train_true_pred_count = 0
     for data_dict in trainloader:
+        
+        
+        # torch.save(data_dict, "data_dict.pt")
+        # print(data_dict)
+        # exit()
+        
         pc, label = data_dict['pc'].to(device), data_dict['cate'].to(device)
         bs = pc.shape[0]
         # print(pc.shape)

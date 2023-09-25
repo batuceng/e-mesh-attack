@@ -43,10 +43,10 @@ TEST_SET = ['FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk
              'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_n2', 'FaceTalk_170904_03276_TA_n3', 'FaceTalk_170904_03276_TA_n4']
 
 def translate_pointcloud(pointcloud):
-    xyz1 = (3./2. - 2./3) * torch.rand(3, dtype=pointcloud.dtype) + 2./3
+    xyz1 = (3./2. - 2./3) * torch.rand(1, dtype=pointcloud.dtype) + 2./3
     xyz2 = (0.2 - (-0.2)) * torch.rand(3, dtype=pointcloud.dtype) + (-0.2)
     
-    translated_pointcloud = torch.add(torch.multiply(pointcloud, xyz1), xyz2)
+    translated_pointcloud = torch.add(pointcloud*xyz1, xyz2)
     return translated_pointcloud
 
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.02):
@@ -76,7 +76,8 @@ def load_data_cls(partition, process_type):
             file_path = glob.glob(file_dir+f'/*{process_type}.stl')[0]
             mesh_data = mesh.Mesh.from_file(file_path)
             all_data.append({
-                'mesh': mesh_data,
+                'meshvectors': mesh_data.vectors,
+                'meshnormals': mesh_data.normals,
                 'cate': LABEL_STR2INT[label_type],
                 'pc': mesh_data.vectors.mean(axis=1),
                 'shift': 0,
@@ -123,21 +124,45 @@ class Coma(Dataset):
         pointcloud = (pointcloud-shift)/scale
         
         # Masking for z>0
-        pointcloud = pointcloud[pointcloud[:,2] > 0,:]
+        indices = pointcloud[:,2] > 0
+        #print(indices.shape)
+        #print(pointcloud.shape)
+        pointcloud = pointcloud[indices,:]
+        #print(pointcloud.shape)
+
+
+        # pointcloud = translate_pointcloud(torch.tensor(pointcloud))
+
+        data["meshvectors"] = data["meshvectors"][indices]
+        data["meshnormals"] = data["meshnormals"][indices]
+        # data["pc"] = pointcloud
         
+        # return data
+        
+        pointcloud = torch.from_numpy(pointcloud)
         # Random Augmentation
         if self.partition == 'train':
             # print(type(pointcloud))
-            pointcloud = translate_pointcloud(torch.tensor(pointcloud))
+            pointcloud = translate_pointcloud(pointcloud)
             # pointcloud = rotate_pointcloud(pointcloud)
-            pointcloud = pointcloud[torch.randperm(pointcloud.size()[0])].numpy()
+            pointcloud = pointcloud[torch.randperm(pointcloud.size()[0])]
         
-        data["pc"] = pointcloud
+        data["pc"] = pointcloud.clone()
         # Translate everything to torch
-        data = {k:torch.tensor(v).clone() if (isinstance(v, torch.Tensor) or isinstance(v,int), isinstance(v, np.ndarray))
+        # meshes = data["mesh"].vectors
+        data = {k:torch.tensor(v).clone() if (isinstance(v,int) or isinstance(v, np.ndarray))
                 else copy(v) for k, v in data.items()}
         return data
 
     def __len__(self):
         return len(self.all_data)
     
+
+if __name__ == "__main__":
+    
+    
+    dataset = Coma()
+    
+    item = dataset[5]
+        
+    np.save("/home/robust/e-mesh-attack/data_attacked/e-mesh-central/all_data_5.npy", item)

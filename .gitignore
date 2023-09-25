@@ -5,3 +5,4 @@ __pycache__/
 runs/
 old_stufff/
 dataset/data/
+data_attacked/
