@@ -42,12 +42,18 @@ TRAIN_SET = ['FaceTalk_170725_00137_TA', 'FaceTalk_170725_00137_TA_n1', 'FaceTal
 TEST_SET = ['FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk_170904_00128_TA_n2', 'FaceTalk_170904_00128_TA_n3', 'FaceTalk_170904_00128_TA_n4',
              'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_n2', 'FaceTalk_170904_03276_TA_n3', 'FaceTalk_170904_03276_TA_n4']
 
-def translate_pointcloud(pointcloud):
+def translate_pointcloud(pointcloud,meshvectors):
     xyz1 = (3./2. - 2./3) * torch.rand(3, dtype=pointcloud.dtype) + 2./3
     xyz2 = (0.2 - (-0.2)) * torch.rand(3, dtype=pointcloud.dtype) + (-0.2)
     
     translated_pointcloud = torch.add(pointcloud*xyz1, xyz2)
-    return translated_pointcloud
+    
+    A,B,C = meshvectors[:,0,:],meshvectors[:,1,:],meshvectors[:,2,:]
+    A = torch.add(A*xyz1, xyz2).unsqueeze(1)
+    B = torch.add(B*xyz1, xyz2).unsqueeze(1)
+    C = torch.add(C*xyz1, xyz2).unsqueeze(1)
+    translated_meshvectors = torch.cat([A,B,C], dim=1)
+    return translated_pointcloud, translated_meshvectors
 
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.02):
     N, C = pointcloud.shape
@@ -67,7 +73,7 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/mnt/data/yusuf/e-mesh-attack/coma_expanded_2")
+    DATA_DIR = os.path.abspath("/home/robust/e-mesh-attack/coma_expanded_2")
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for folder in selected_set:
@@ -86,8 +92,8 @@ def load_data_cls(partition, process_type):
     return all_data
 
 class Coma(Dataset):
-    def __init__(self, partition='train', scale_mode="unit_sphere", process_type='eyeless'):
-        self.partition, self.process_type = partition, process_type
+    def __init__(self, partition='train', scale_mode="unit_sphere", process_type='eyeless', z_filter=True):
+        self.partition, self.process_type, self.z_filter = partition, process_type, z_filter
         self.all_data = load_data_cls(partition, process_type)
         self.stats = self.get_statistics()
         assert scale_mode is None or scale_mode in ("none", 'global_unit', "unit_sphere")
@@ -116,38 +122,47 @@ class Coma(Dataset):
         # Copy original
         data = {k:v.clone() if isinstance(v, torch.Tensor) else copy(v) for k, v in self.all_data[item].items()}
         pointcloud = data["pc"]
-        # Normalization
+        meshvectors = data["meshvectors"]
+        meshnormals = data["meshnormals"]
+        
+        # Calculate shift-scale values for unit sphere normalization
         shift, scale = 0, 1
         if self.scale_mode=='unit_sphere':
             shift, scale = self.normalize_pc(pointcloud)
         data["shift"], data["scale"] = shift, scale
+        # Normalization of pc by shfit/scale
         pointcloud = (pointcloud-shift)/scale
+        # Normalization of triangle points by shift/scale
+        meshvectors = (meshvectors-shift)/scale
+        # Normalization of normals to unit vectors
+        meshnormals /= np.linalg.norm(meshnormals, ord=2, axis=1, keepdims=True)
+        
         
         # Masking for z>0
-        indices = pointcloud[:,2] > 0
-        #print(indices.shape)
-        #print(pointcloud.shape)
-        pointcloud = pointcloud[indices,:]
-        #print(pointcloud.shape)
-
-
-        # pointcloud = translate_pointcloud(torch.tensor(pointcloud))
-
-        data["meshvectors"] = data["meshvectors"][indices]
-        data["meshnormals"] = data["meshnormals"][indices]
-        # data["pc"] = pointcloud
+        if self.z_filter:
+            indices = pointcloud[:,2] > 0
+            pointcloud = pointcloud[indices,:]
+            meshvectors = meshvectors[indices]
+            meshnormals = meshnormals[indices]
         
-        # return data
-        
+        # To torch
         pointcloud = torch.from_numpy(pointcloud)
+        meshvectors = torch.from_numpy(meshvectors)
+        meshnormals = torch.from_numpy(meshnormals)
+        
         # Random Augmentation
         if self.partition == 'train':
             # print(type(pointcloud))
-            pointcloud = translate_pointcloud(pointcloud)
+            pointcloud,meshvectors = translate_pointcloud(pointcloud,meshvectors)
             # pointcloud = rotate_pointcloud(pointcloud)
-            pointcloud = pointcloud[torch.randperm(pointcloud.size()[0])]
+            indices = torch.randperm(pointcloud.size()[0])
+            pointcloud = pointcloud[indices]
+            meshvectors = meshvectors[indices]
+            meshnormals = meshnormals[indices]
         
         data["pc"] = pointcloud.clone()
+        data["meshvectors"] = meshvectors.clone()
+        data["meshnormals"] = meshnormals.clone()
         # Translate everything to torch
         # meshes = data["mesh"].vectors
         data = {k:torch.tensor(v).clone() if (isinstance(v,int) or isinstance(v, np.ndarray))

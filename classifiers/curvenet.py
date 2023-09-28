@@ -19,7 +19,7 @@ curve_config = {
     }
 
 class CurveNet(nn.Module):
-    def __init__(self, num_classes=40, k=20, setting='default'):
+    def __init__(self, output_channels=12, k=20, setting='default'):
         super(CurveNet, self).__init__()
 
         assert setting in curve_config
@@ -45,7 +45,7 @@ class CurveNet(nn.Module):
             nn.InstanceNorm1d(1024),
             nn.ReLU(inplace=True))
         self.conv1 = nn.Linear(1024 * 2, 512, bias=False)
-        self.conv2 = nn.Linear(512, num_classes) 
+        self.conv2 = nn.Linear(512, output_channels) 
         self.bn1 = nn.InstanceNorm1d(512)
         self.dp1 = nn.Dropout(p=0.5)
         

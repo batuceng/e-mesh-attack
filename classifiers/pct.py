@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import os
 from os.path import abspath, dirname
+import numpy as np
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
@@ -29,7 +30,7 @@ class Local_op(nn.Module):
         return x
 
 class Pct(nn.Module):
-    def __init__(self, args=AttrDict({"dropout": 0.5}), output_channels=40):
+    def __init__(self, args=AttrDict({"dropout": 0.5}), output_channels=12):
         super(Pct, self).__init__()
         self.args = args
         self.conv1 = nn.Conv1d(3, 64, kernel_size=1, bias=False)

@@ -282,13 +282,13 @@ class PosExtraction(nn.Module):
 
 
 class PointMLP(nn.Module):
-    def __init__(self, points=1024, class_num=40, embed_dim=64, groups=1, res_expansion=1.0,
+    def __init__(self, points=1024, output_channels=12, embed_dim=64, groups=1, res_expansion=1.0,
                  activation="relu", bias=False, use_xyz=False, normalize="anchor",
                  dim_expansion=[2, 2, 2, 2], pre_blocks=[2, 2, 2, 2], pos_blocks=[2, 2, 2, 2],
                  k_neighbors=[24, 24, 24, 24], reducers=[2, 2, 2, 2], **kwargs):
         super(PointMLP, self).__init__()
         self.stages = len(pre_blocks)
-        self.class_num = class_num
+        self.class_num = output_channels
         self.points = points
         self.embedding = ConvBNReLU1D(3, embed_dim, bias=bias, activation=activation)
         assert len(pre_blocks) == len(k_neighbors) == len(reducers) == len(pos_blocks) == len(dim_expansion), \

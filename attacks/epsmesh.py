@@ -16,14 +16,14 @@ def seed_all(seed):
 
 # Epsilon-Mesh Attack
 class EpsMeshAttack(object):
-    def __init__(self, model, device, projection="central", eps=1.0, alpha=0.02, steps=10, random_start=False, seed=3):
+    def __init__(self, model, device, projection="perpendicular", eps=1.0, alpha=0.05, steps=10, random_start=False, seed=3):
         # Model info
         self.model = model.to(device).eval()
         self.name = "EpsMeshAttack"
         self.device = device
         self.targeted = False
         # Attack Vals
-        if projection not in ["central"]: raise NotImplementedError
+        if projection not in ["central","perpendicular"]: raise NotImplementedError
         if not 0 < eps <= 1: raise Exception("Mesh bound epsilon can only be 0 < eps <= 1")
         
         self.projection = projection
@@ -31,6 +31,7 @@ class EpsMeshAttack(object):
         self.alpha = alpha
         self.steps = steps
         self.random_start = random_start
+        self.stepscale = 5
         # Set seed
         self.seed = seed
         if seed is not None: seed_all(seed)
@@ -41,21 +42,20 @@ class EpsMeshAttack(object):
         labels = labels.clone().detach().to(self.device)
         meshvectors = meshvectors.clone().detach().to(self.device)
         meshnormals = meshnormals.clone().detach().to(self.device)
-        # meshvectors: (B, N, v, d); meshnormals: (B, N, d)
+        center = meshvectors.mean(dim=2).unsqueeze(2)
+        # meshvectors: (B, N, v, d); meshnormals: (B, N, d); barycenters: (B, N, d)
+        
+        if self.eps < 1.0:
+            meshvectors = center + self.eps*(meshvectors - center)
+            
+        # dist = torch.norm(meshvectors - center, 2, dim=3, keepdim=True)
+        # alpha = torch.max(dist, dim=2)[0] / (self.steps//self.stepscale)
+        
         
         loss = nn.CrossEntropyLoss()
         
         adv_data = data.clone().detach()
         batch_size = data.shape[0]
-        
-        # if self.random_start:
-        #     # Starting at a uniformly random point
-        #     delta = torch.empty_like(adv_data).normal_()
-        #     d_flat = delta.view(batch_size, -1)
-        #     n = d_flat.norm(p=2, dim=1).view(batch_size, 1, 1)
-        #     r = torch.zeros_like(n).uniform_(0, 1)
-        #     delta = (delta*r*self.eps)/n
-        #     adv_data = torch.clamp(adv_data + delta, min=0, max=1).detach()
         
         for _ in range(self.steps):
             adv_data.requires_grad = True
@@ -77,11 +77,19 @@ class EpsMeshAttack(object):
             adv_data = adv_data.detach() + self.alpha * grad
             
             
-            # project delta onto plane of mesh
+            # project delta onto plane of mesh; projv_a = (a.v / ||v||^2) * v
             delta = adv_data - data
-            delta = delta - (torch.einsum('bnd,bnd->bn', delta, meshnormals) / torch.einsum('bnd,bnd->bn', meshnormals, meshnormals)).unsqueeze(-1) * meshnormals 
+            delta = delta - (self.dotprod(delta, meshnormals) / self.dotprod(meshnormals, meshnormals)) * meshnormals 
             
-            intersection = self.central_projection(meshvectors, delta)
+            # Scale the triangle around barycenter based on eps value
+            
+                
+            if self.projection=="central":
+                intersection = self.central_projection(meshvectors, delta)
+            elif self.projection=='perpendicular':
+                intersection = self.perpendicular_projection(meshvectors, delta)
+            else:
+                raise NotImplementedError
             
             # delta_norms = torch.norm(delta.reshape(batch_size, -1), p=2, dim=1)
             # factor = self.eps / delta_norms
@@ -92,6 +100,11 @@ class EpsMeshAttack(object):
             adv_data = intersection.detach()
 
         return adv_data
+    
+    # Dot product between for batched tensors a & b along dimension d. a: (B,N,d), b: (B,N,d), out: (B,N,1)
+    @staticmethod
+    def dotprod(a,b):
+        return torch.einsum('bnd,bnd->bn', a, b).unsqueeze(-1)
 
     def central_projection(self, triangle, delta):
         """_summary_
@@ -100,31 +113,32 @@ class EpsMeshAttack(object):
             triangle (_type_): B, N, V, D
             delta (_type_): B, N, D
         """
+        # Barycenter of each triangle, a point named G
         center = triangle.mean(dim=2) # B, N, D
-        if self.eps < 1.0:
-            triangle = center.unsqueeze(2) + self.eps*(triangle - center.unsqueeze(2))
-            
+
+        # Current point on the same plane, a point named P
         point = center + delta # B, N, D
         
+        # Select closest corner to the point, a point named A
         closest_ind = torch.norm(triangle-point.unsqueeze(-1), 2, dim=2).argmin(dim=2) # B, N
-        next_ind = (closest_ind + 1) % 3 # Get random index by choosing next index
+        # Get another random corner by choosing next index, a point named B
+        next_ind = (closest_ind + 1) % 3 
         
         B, N, V, D = triangle.shape
         
         closest_points = triangle[torch.arange(B), torch.arange(N), closest_ind]
         next_points = triangle[torch.arange(B), torch.arange(N), next_ind]
-        
+        # Calculate cosine values for angle AGB & angle PGB
         cosagb = self.cosangle(closest_points, center, next_points)
         cospgb = self.cosangle(point, center, next_points)
         
-        # Select true next index
+        # Select the line that is cloesest to the Point
         next_ind = torch.where(cosagb - cospgb < 0, next_ind, (next_ind+1)%3)
 
-        # Solve Ax=b
+        # Calculate Intersection of lines PG & AB, Solve Ax=b
         A = torch.cat([next_points.reshape(B, N, -1, 1) - closest_points.reshape(B, N, -1, 1), -(point - center).reshape(B, N, -1, 1)], dim=-1)
-        
         b = (center - closest_points).reshape(B, N, -1, 1)
-        solution = torch.linalg.lstsq(A, b).solution
+        solution = torch.linalg.lstsq(A+1e-8, b).solution
         point_intersec = closest_points +  solution[:, :, 0] * (next_points - closest_points)
         
         # Compare length of delta and intersection vector to determine if the point is in triangle
@@ -148,12 +162,64 @@ class EpsMeshAttack(object):
         v1 = p0 - p1 # B, N, D
         v2 = p2 - p1
         # θ = cos-1 [ (a · b) / (|a| |b|) ]
-        costheta = torch.einsum("bnd,bnd->bn", v1, v2) / (torch.norm(v1, 2, dim=2) * torch.norm(v2, 2, dim=2))
+        costheta = torch.einsum("bnd,bnd->bn", v1, v2) / ((torch.norm(v1, 2, dim=2) * torch.norm(v2, 2, dim=2)) + 1e-8)
         return costheta
         
 
-    def perpendicular_projection(triangle, delta):
-        pass
+    def perpendicular_projection(self, triangle, delta):
+        A, B, C = triangle[:,:,0,:], triangle[:,:,1,:], triangle[:,:,2,:]
+        center = triangle.mean(axis=2)
+        P = center + delta
+        res = P.clone()
+        
+        AB = B-A
+        AC = C-A
+
+        AP = P-A
+        dA1 = self.dotprod(AB,AP)
+        dA2 = self.dotprod(AC,AP)
+        # if( dA1<=0 and dA2 <=0):
+        pos1 = torch.logical_and((dA1<=0),(dA2<=0))
+        res = torch.where(pos1, A, res)
+        # print(f"Condition 1 triggered:{pos1.sum()}")
+        
+        BP = P - B
+        dB1 = self.dotprod(AB, BP)
+        dB2 = self.dotprod(AC, BP)
+        # if( dB1 >= 0 and dB2 <=0 ):
+        pos2 = torch.logical_and((dB1>=0),(dB2<=0))
+        res = torch.where(pos2, B, res)
+        # print(f"Condition 2 triggered:{pos2.sum()}")
+
+        CP = P - C
+        dC1 = self.dotprod(AB,CP)
+        dC2 = self.dotprod(AC,CP)
+        # if( dC2 >= 0 and dC1 <= dC2 ):
+        pos3 = torch.logical_and((dC2>=0),(dC1<=dC2))
+        res = torch.where(pos3, C, res)
+        # print(f"Condition 3 triggered:{pos3.sum()}")
+        
+        EdgeAB = dA1*dB2 - dB1*dA2
+        # if( EdgeAB <= 0 and dA1 >= 0 and dB1 <=0):
+        pos4 = torch.logical_and(torch.logical_and((EdgeAB<=0),(dA1>=0)), (dB1<=0))
+        res = torch.where(pos4, (self.dotprod(AP,AB)/(self.dotprod(AB,AB)+1e-8)*AB)+A, res)
+        # print(f"Condition 4 triggered:{pos4.sum()}")
+        
+        BC = C - B
+        EdgeBC = dB1*dC2 - dC1*dB2; 
+        # if( EdgeBC <= 0 and (dB2-dB1)>=0 and (dC1-dC2)>=0):
+        pos5 = torch.logical_and(torch.logical_and((EdgeBC<=0),((dB2-dB1)>=0)), ((dC1-dC2)>=0))
+        res = torch.where(pos5, (self.dotprod(BP,BC)/(self.dotprod(BC,BC)+1e-8)*BC)+B, res)
+        # print(f"Condition 5 triggered:{pos5.sum()}")
+
+        EdgeAC = dC1*dA2 - dA1*dC2
+        # if( EdgeAC <= 0 and dA2>=0 and dC2<=0 ):
+        pos6 = torch.logical_and(torch.logical_and((EdgeAC <= 0),(dA2>=0)), (dC2<=0))
+        res = torch.where(pos6, (self.dotprod(AP,AC)/(self.dotprod(AC,AC)+1e-8)*AC)+A, res)
+        # print(f"Condition 6 triggered:{pos6.sum()}")
+        
+        return res            
+        
 
             
     def get_logits(self, inputs):
@@ -173,7 +239,7 @@ class EpsMeshAttack(object):
             scale = batch["scale"]
             # Forward
             logits = self.get_logits(pc)
-            adv_data = self.attack(data=pc.clone()*scale+shift, labels=label, meshvectors=meshvectors, meshnormals=meshnormals)
+            adv_data = self.attack(data=pc.clone(), labels=label, meshvectors=meshvectors, meshnormals=meshnormals)
             # Check attack
             attacked_logits = self.get_logits(adv_data)
             # Store for Acc Stats

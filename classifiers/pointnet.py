@@ -8,7 +8,7 @@ import os
 from os.path import abspath, dirname
 
 class PointNet_cls(nn.Module):
-    def __init__(self, k=40, normal_channel=False):
+    def __init__(self, output_channels=12, normal_channel=False):
         super(PointNet_cls, self).__init__()
         if normal_channel:
             channel = 6
@@ -17,7 +17,7 @@ class PointNet_cls(nn.Module):
         self.feat = PointNetEncoder(global_feat=True, feature_transform=True, channel=channel)
         self.fc1 = nn.Linear(1024, 512)
         self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, k)
+        self.fc3 = nn.Linear(256, output_channels)
         self.dropout = nn.Dropout(p=0.4)
         self.bn1 = nn.InstanceNorm1d(512)
         self.bn2 = nn.InstanceNorm1d(256)

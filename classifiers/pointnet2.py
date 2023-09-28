@@ -22,7 +22,7 @@ def download_pointnet2(root):
     return weight_paths
 
 class PointNet2_cls(nn.Module):
-    def __init__(self,num_class=40,normal_channel=False):
+    def __init__(self,output_channels=12,normal_channel=False):
         super(PointNet2_cls, self).__init__()
         in_channel = 6 if normal_channel else 3
         self.normal_channel = normal_channel
@@ -35,7 +35,7 @@ class PointNet2_cls(nn.Module):
         self.fc2 = nn.Linear(512, 256)
         self.bn2 = nn.InstanceNorm1d(256)
         self.drop2 = nn.Dropout(0.4)
-        self.fc3 = nn.Linear(256, num_class)
+        self.fc3 = nn.Linear(256, output_channels)
         
         # Load
         # self.load_pretrained()
