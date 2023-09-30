@@ -1,19 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Author: Yue Wang
-@Contact: yuewangx@mit.edu
-@File: data.py
-@Time: 2018/10/13 6:21 PM
-
-Modified by 
-@Author: An Tao, Pengliang Ji, Ziyi Wu
-@Contact: ta19@mails.tsinghua.edu.cn, jpl1723@buaa.edu.cn, dazitu616@gmail.com
-@Time: 2022/7/30 7:49 PM
-
-MODIFIED TO CONTAIN ONLY MODELNET40 CLASSIFICATION DATASET
-"""
-
 import torch
 import os
 import glob
@@ -42,7 +28,7 @@ TRAIN_SET = ['FaceTalk_170725_00137_TA', 'FaceTalk_170725_00137_TA_n1', 'FaceTal
 TEST_SET = ['FaceTalk_170904_00128_TA', 'FaceTalk_170904_00128_TA_n1', 'FaceTalk_170904_00128_TA_n2', 'FaceTalk_170904_00128_TA_n3', 'FaceTalk_170904_00128_TA_n4',
              'FaceTalk_170904_03276_TA', 'FaceTalk_170904_03276_TA_n1', 'FaceTalk_170904_03276_TA_n2', 'FaceTalk_170904_03276_TA_n3', 'FaceTalk_170904_03276_TA_n4']
 
-def translate_pointcloud(pointcloud,meshvectors):
+def translate_pointcloud(pointcloud, meshvectors, meshnormals):
     xyz1 = (3./2. - 2./3) * torch.rand(3, dtype=pointcloud.dtype) + 2./3
     xyz2 = (0.2 - (-0.2)) * torch.rand(3, dtype=pointcloud.dtype) + (-0.2)
     
@@ -53,7 +39,8 @@ def translate_pointcloud(pointcloud,meshvectors):
     B = torch.add(B*xyz1, xyz2).unsqueeze(1)
     C = torch.add(C*xyz1, xyz2).unsqueeze(1)
     translated_meshvectors = torch.cat([A,B,C], dim=1)
-    return translated_pointcloud, translated_meshvectors
+    translated_meshnormals = meshnormals*(1/(xyz1+1e-12))
+    return translated_pointcloud, translated_meshvectors, translated_meshnormals
 
 def jitter_pointcloud(pointcloud, sigma=0.01, clip=0.02):
     N, C = pointcloud.shape
@@ -73,7 +60,8 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/home/robust/e-mesh-attack/coma_expanded_2")
+    DATA_DIR = os.path.abspath("/ari/users/bcengiz/e-mesh-attack/coma_expanded_2")
+
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for folder in selected_set:
@@ -140,6 +128,7 @@ class Coma(Dataset):
         
         # Masking for z>0
         if self.z_filter:
+            # print("filtered by z!")
             indices = pointcloud[:,2] > 0
             pointcloud = pointcloud[indices,:]
             meshvectors = meshvectors[indices]
@@ -153,7 +142,7 @@ class Coma(Dataset):
         # Random Augmentation
         if self.partition == 'train':
             # print(type(pointcloud))
-            pointcloud,meshvectors = translate_pointcloud(pointcloud,meshvectors)
+            pointcloud,meshvectors,meshnormals = translate_pointcloud(pointcloud,meshvectors,meshnormals)
             # pointcloud = rotate_pointcloud(pointcloud)
             indices = torch.randperm(pointcloud.size()[0])
             pointcloud = pointcloud[indices]

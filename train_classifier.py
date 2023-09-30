@@ -12,12 +12,24 @@ import json
 import argparse
 import time
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'True', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'False', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 # Arguments
 parser = argparse.ArgumentParser()
 
 # Datasets and loaders
 
 parser.add_argument('--batch-size', type=int, default=1)
+parser.add_argument('--num_workers', type=int, default=1)
+parser.add_argument('--z-filter', type=str2bool, default=True)
 
 parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
                     choices=['pointnet', 'pointnet2', 'dgcnn', 'curvenet', 'pct', 'pointmlp', 'gacnet'],
@@ -65,8 +77,8 @@ model_dict = {
 }
 
 MAX_EPOCH = 1000
-trainloader = DataLoader(dataset=Coma(partition='train'), batch_size=1, shuffle=True, num_workers=1)
-testloader = DataLoader(dataset=Coma(partition='test'), batch_size=1, num_workers=1)
+trainloader = DataLoader(dataset=Coma(partition='train', z_filter=args.z_filter), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+testloader = DataLoader(dataset=Coma(partition='test', z_filter=args.z_filter), batch_size=args.batch_size, num_workers=args.num_workers)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = model_dict[args.model]().to(device)
 
@@ -103,7 +115,7 @@ for epoch in range(MAX_EPOCH):
     train_true_pred_count = 0
     length = len(trainloader)
     for i, data_dict in enumerate(trainloader):
-        if i % 100 == 0:
+        if i % (100//args.batch_size) == 0:
             print("Batch:", i, "/", length)
         
         pc, label = data_dict['pc'].to(device), data_dict['cate'].to(device)

@@ -1,5 +1,3 @@
-# Pretained PointNet++ Code retrieved from https://github.com/yanx27/Pointnet_Pointnet2_pytorch
-
 import torch
 import torch.nn as nn
 import numpy as np

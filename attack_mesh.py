@@ -7,7 +7,7 @@ import os
 
 from dataset.coma2 import Coma
 from classifiers import PCT_cls, DGCNN_cls, CurveNet_cls, PointMLP_cls, PointNet_cls, PointNet2_cls
-from attacks import EpsMeshAttack, PGDL2, VANILA
+from attacks import EpsMeshAttack, PGDL2, PGDLinf, VANILA
 
 def none_or_str(value):
     if value.lower() == 'none':
@@ -41,17 +41,26 @@ parser_pgdl2.add_argument('--eps', type=float, default=1.25,
 parser_pgdl2.add_argument('--alpha', type=float, default=0.05,
                         help='Size of each step')
 parser_pgdl2.add_argument('--steps', type=int, default=30,
-                        help='Number of iteration steps for pgdL2')
+                        help='Number of iteration steps for attack')
 
-# Attack arguments
-parser_pgdl2 = subparsers.add_parser('e-mesh')
-parser_pgdl2.add_argument('--projection', type=str, default="central", choices=["perpendicular", "central"])
-parser_pgdl2.add_argument('--eps', type=float, default=1.0,
-                        help='Mesh bound scale. Can be 0 < eps <=1')
-parser_pgdl2.add_argument('--alpha', type=float, default=0.05,
+# subparsers for PGDLinf Attack
+parser_pgd = subparsers.add_parser('pgd').add_argument_group()
+parser_pgd.add_argument('--eps', type=float, default=0.05,
+                        help='Linf eps bound')
+parser_pgd.add_argument('--alpha', type=float, default=0.002,
                         help='Size of each step')
-parser_pgdl2.add_argument('--steps', type=int, default=30,
-                        help='Number of iteration steps for pgdL2')
+parser_pgd.add_argument('--steps', type=int, default=30,
+                        help='Number of iteration steps for pgd')
+
+# subparsers for e-mesh Attack
+parser_emesh = subparsers.add_parser('e-mesh')
+parser_emesh.add_argument('--projection', type=str, default="perpendicular", choices=["perpendicular", "central"])
+parser_emesh.add_argument('--eps', type=float, default=1.0,
+                        help='Mesh bound scale. Can be 0 < eps <=1')
+parser_emesh.add_argument('--alpha', type=float, default=0.05,
+                        help='Size of each step')
+parser_emesh.add_argument('--steps', type=int, default=30,
+                        help='Number of iteration steps for attack')
 
 # Parse args
 parser._action_groups.reverse()
@@ -60,36 +69,37 @@ args = parser.parse_args()
 print(args)
 
 model_dict = {
-    'curvenet': CurveNet_cls, #0.938412
-    'pct':      PCT_cls, #0.931524
-    'pointmlp': PointMLP_cls, #0.940032
-    'dgcnn':    DGCNN_cls, #0.928687
-    'pointnet2':PointNet2_cls, #0.911264
-    'pointnet': PointNet_cls, #0.896677
+    'curvenet': CurveNet_cls, 
+    'pct':      PCT_cls, 
+    'pointmlp': PointMLP_cls, 
+    'dgcnn':    DGCNN_cls, #0.79
+    'pointnet2':PointNet2_cls, 
+    'pointnet': PointNet_cls, #0.71
 }
 
 # Attack Dictionary
 attack_dict = {
     'e-mesh':   EpsMeshAttack,
     'pgdl2':    PGDL2,
+    'pgd':    PGDLinf,
     'vanila':   VANILA
 }
 
 
 device = torch.device('cuda' if torch.cuda.is_available() and args.device == "cuda" else 'cpu')
-model = model_dict[args.model]().to(device)
-weights = torch.load("runs/Sep22_05-10-02_yusuf/best-model.pt")
-model.load_state_dict(weights)
+model = model_dict[args.model](pretrained=True).to(device)
 model.eval()
 
 dataset = Coma(partition="test")
-test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False)
+test_loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, drop_last=False, num_workers=4)
 
 if args.attack == "e-mesh":
     atk = EpsMeshAttack(model=model, device=device, projection=args.projection, eps=args.eps, alpha=args.alpha, steps=args.steps, seed=args.seed)
     args.attack += f"-{args.projection}"
 elif args.attack == "pgdl2":
     atk = PGDL2(model=model, device=device, eps=args.eps, alpha=args.alpha, steps=args.steps, random_start=False, seed=args.seed)
+elif args.attack == "pgd":
+    atk = PGDLinf(model=model, device=device, eps=args.eps, alpha=args.alpha, steps=args.steps, random_start=False, seed=args.seed)
 else:
     atk = VANILA(model=model, device=device, seed=args.seed)
 

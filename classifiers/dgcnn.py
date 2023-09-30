@@ -1,22 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Author: Yue Wang
-@Contact: yuewangx@mit.edu
-@File: model.py
-@Time: 2018/10/13 6:35 PM
-
-Modified by 
-@Author: An Tao, Ziyi Wu
-@Contact: ta19@mails.tsinghua.edu.cn, dazitu616@gmail.com
-@Time: 2022/7/30 7:49 PM
-
-Modified by 
-@Author: Batuhan Cengiz, Mert Gulsen
-@Contact: cengiz16@itu.edu.tr, gulsen20@itu.edu.tr
-@Time: 2023/7/25 1:35 PM
-"""
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -64,7 +47,7 @@ def get_graph_feature(x: torch.tensor, k: int = 20, idx=None, dim9=False):
 
 class DGCNN_cls(nn.Module):
     def __init__(self, args=AttrDict({"emb_dims":1024,"k":20,"dropout":0.5}) , 
-                 output_channels=12):
+                 output_channels=12, pretrained=False):
         super(DGCNN_cls, self).__init__()
         self.args = args
         self.k = args.k
@@ -97,10 +80,12 @@ class DGCNN_cls(nn.Module):
         self.bn7 = nn.InstanceNorm1d(256)
         self.dp2 = nn.Dropout(p=args.dropout)
         self.linear3 = nn.Linear(256, output_channels)
-        
+        self.pretrained = pretrained
         # Load 
-        # self.load_pretrained()
-        # self.eval()
+        if self.pretrained:
+            self.load_pretrained()
+            print("Loaded pretrained model!")
+            self.eval()
 
     def forward(self, x):
         batch_size = x.size(0)
@@ -151,37 +136,19 @@ class DGCNN_cls(nn.Module):
     
 
 
-    def load_pretrained(self, model_name="model.1024.t7", root=dirname(abspath(__file__)) ):
-        assert model_name in ["model.1024.t7"]
+    def load_pretrained(self, model_name="best_dgcnn.pt", root=dirname(abspath(__file__)) ):
+        assert model_name in ["best_dgcnn.pt"]
         # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
-        weight_paths = download_dgcnn(root)
-        weights = torch.load(weight_paths[model_name])
-        weights = {k[7:]:v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
+        weight_paths = os.path.join(*[root, "pretrained", model_name])
+        weights = torch.load(weight_paths)
+        # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
         
         # Partial load
         model_dict = self.state_dict()
-        weights = {k:v for k, v in weights.items() if (k in model_dict) and (not k.startswith('linear3'))}
+        weights = {k:v for k, v in weights.items() if k in model_dict}
         model_dict.update(weights)
         self.load_state_dict(model_dict)
         
-    
-def download_dgcnn(root):
-    weight_paths = {}
-    DATA_DIR = os.path.join(root, 'pretrained')
-    SUB_DIR = os.path.join(DATA_DIR, 'dgcnn_weights')
-    if not os.path.exists(DATA_DIR):
-        os.mkdir(DATA_DIR)
-    if not os.path.exists(SUB_DIR):
-        os.mkdir(SUB_DIR)
-    if not os.path.exists(os.path.join(SUB_DIR, 'model.1024.t7')):
-        www = 'https://github.com/WangYueFt/dgcnn/raw/master/pytorch/pretrained/model.1024.t7'
-        os.system('wget --no-check-certificate %s -P %s' % (www, SUB_DIR))
-    # if not os.path.exists(os.path.join(SUB_DIR, 'model.cls.2048.t7')):
-        # www = 'https://github.com/antao97/dgcnn.pytorch/raw/master/pretrained/model.cls.2048.t7'
-        # os.system('wget --no-check-certificate %s -P %s' % (www, SUB_DIR))
-    weight_paths["model.1024.t7"] = os.path.join(SUB_DIR, 'model.1024.t7')
-    # weight_paths["model.cls.2048.t7"] = os.path.join(SUB_DIR, 'model.cls.2048.t7')
-    return weight_paths
         
 if __name__ == "__main__":
     model = DGCNN_cls()
