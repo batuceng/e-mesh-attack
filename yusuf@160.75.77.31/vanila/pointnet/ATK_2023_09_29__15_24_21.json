@@ -1,0 +1,12 @@
+{
+    "batch_size": 1,
+    "dataset": "coma",
+    "model": "pointnet",
+    "save_path": "./data_attacked",
+    "device": "cuda",
+    "seed": 0,
+    "attack": "vanila",
+    "data_path": "./data_attacked/vanila/pointnet/ATK_2023_09_29__15_24_21",
+    "clean_acc": 0.7166666666666667,
+    "attack_acc": 0.7166666666666667
+}

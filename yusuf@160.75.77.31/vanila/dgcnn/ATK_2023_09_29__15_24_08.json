@@ -1,0 +1,12 @@
+{
+    "batch_size": 1,
+    "dataset": "coma",
+    "model": "dgcnn",
+    "save_path": "./data_attacked",
+    "device": "cuda",
+    "seed": 0,
+    "attack": "vanila",
+    "data_path": "./data_attacked/vanila/dgcnn/ATK_2023_09_29__15_24_08",
+    "clean_acc": 0.7916666666666666,
+    "attack_acc": 0.7916666666666666
+}

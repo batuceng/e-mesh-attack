@@ -60,7 +60,7 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/ari/users/bcengiz/e-mesh-attack/coma_expanded_2")
+    DATA_DIR = os.path.abspath("/mnt/disk5/batu/myprojects/e-mesh-attack/coma_expanded_2")
 
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
@@ -162,11 +162,12 @@ class Coma(Dataset):
         return len(self.all_data)
     
 
-# if __name__ == "__main__":
+if __name__ == "__main__":
     
     
-#     dataset = Coma()
+    dataset = Coma()
     
-#     item = dataset[5]
+    item = dataset[5]
+    print(item.shape)
         
-#     np.save("/home/robust/e-mesh-attack/data_attacked/e-mesh-central/all_data_5.npy", item)
+    # np.save("/home/robust/e-mesh-attack/data_attacked/e-mesh-central/all_data_5.npy", item)
