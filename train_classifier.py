@@ -4,8 +4,11 @@ import numpy as np
 import random
 
 from dataset.coma2 import Coma
+from dataset.bosphorus_stl import Bosphorus
+from dataset.facewarehouse_stl import Facewarehouse
 from torch.utils.data import DataLoader
 from classifiers import DGCNN_cls, PointNet2_cls, PointNet_cls, PCT_cls, PointMLP_cls, CurveNet_cls, GACNet_cls
+from classifiers.gdanet import GDANet_cls
 
 from torch.utils.tensorboard import SummaryWriter
 import json
@@ -32,8 +35,11 @@ parser.add_argument('--num_workers', type=int, default=1)
 parser.add_argument('--z-filter', type=str2bool, default=True)
 
 parser.add_argument('--model', type=str, default='dgcnn', metavar='N',
-                    choices=['pointnet', 'pointnet2', 'dgcnn', 'curvenet', 'pct', 'pointmlp', 'gacnet'],
-                    help='Model to use, [pointnet, pointnet2, dgcnn, curvenet, pct, pointmlp, gacnet]')
+                    choices=['pointnet', 'pointnet2', 'dgcnn', 'curvenet', 'pct', 'pointmlp', 'gacnet', 'gdanet'],
+                    help='Model to use, [pointnet, pointnet2, dgcnn, curvenet, pct, pointmlp, gacnet, gdanet]')
+parser.add_argument('--dataset', type=str, default='coma', metavar='N',
+                    choices=['coma', 'bosphorus', 'facewarehouse'],
+                    help='Select the dataset: Coma, BosphorusDB, FaceWarehouse')
 
 parser.add_argument('--lr', type=float, default=1e-3,
                     help='Learning Rate')
@@ -73,14 +79,30 @@ model_dict = {
     'dgcnn':    DGCNN_cls, #0.79
     'pointnet2':PointNet2_cls, #0.
     'pointnet': PointNet_cls,
-    'gacnet': GACNet_cls
+    'gacnet': GACNet_cls,
+    'gdanet': GDANet_cls
 }
 
+dataset_dict = {
+    'coma':         Coma,
+    'bosphorus':    Bosphorus,
+    'facewarehouse':Facewarehouse
+}
+# Ensure that z_filter is closed in BosphorusDB dataset
+if args.dataset == 'bosphorus': assert args.z_filter == False 
+if args.dataset == 'facewarehouse': assert args.z_filter == True 
+
 MAX_EPOCH = 1000
-trainloader = DataLoader(dataset=Coma(partition='train', z_filter=args.z_filter), batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-testloader = DataLoader(dataset=Coma(partition='test', z_filter=args.z_filter), batch_size=args.batch_size, num_workers=args.num_workers)
+
+train_dataset = dataset_dict[args.dataset](partition='train', z_filter=args.z_filter)
+test_dataset = dataset_dict[args.dataset](partition='test', z_filter=args.z_filter)
+trainloader = DataLoader(dataset=train_dataset, 
+                         batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+testloader = DataLoader(dataset=test_dataset, 
+                        batch_size=args.batch_size, num_workers=args.num_workers)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = model_dict[args.model]().to(device)
+no_of_classes = len(train_dataset.label_dict)
+model = model_dict[args.model](output_channels=no_of_classes, pretrained=False).to(device)
 
 
 writer = SummaryWriter()
@@ -120,7 +142,6 @@ for epoch in range(MAX_EPOCH):
         
         pc, label = data_dict['pc'].to(device), data_dict['cate'].to(device)
         bs = pc.shape[0]
-        # print(pc.shape)
 
         optimizer.zero_grad()
         logits = model(pc.transpose(1,2))

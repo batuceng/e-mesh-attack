@@ -25,8 +25,12 @@ class PointNet_cls(nn.Module):
 
         self.pretrained = pretrained
         # Load 
-        if self.pretrained:
-            self.load_pretrained()
+        if self.pretrained is not False:
+            if self.pretrained is True:
+                dataset_name = 'coma_trained'
+            else:
+                dataset_name = self.pretrained
+            self.load_pretrained(dataset_name=dataset_name)
             print("Loaded pretrained model!")
             self.eval()
 
@@ -59,10 +63,11 @@ class PointNet_cls(nn.Module):
         return x, layer_data
 
 
-    def load_pretrained(self, model_name="best_pointnet.pt", root=dirname(abspath(__file__)) ):
+    def load_pretrained(self, dataset_name, model_name="best_pointnet.pt", root=dirname(abspath(__file__)) ):
+        assert dataset_name in ["coma_trained", "bosphorus_trained", "facewarehouse_trained"]
         assert model_name in ["best_pointnet.pt"]
         # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
-        weight_paths = os.path.join(*[root, "pretrained", model_name])
+        weight_paths = os.path.join(*[root, "pretrained", dataset_name, model_name])
         weights = torch.load(weight_paths)
         # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
         

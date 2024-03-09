@@ -1,0 +1,12 @@
+{
+    "batch_size": 1,
+    "num_workers": 1,
+    "z_filter": false,
+    "model": "pointnet",
+    "dataset": "bosphorus",
+    "lr": 0.0002,
+    "wd": 2e-05,
+    "lr_step_size": 30,
+    "lr_decay": 0.97,
+    "seed": 1
+}

@@ -25,12 +25,14 @@ class PGDLinf(Attack):
         loss = nn.CrossEntropyLoss()
         
         adv_data = data.clone().detach()
+        batch_size = data.shape[0]
         
         if self.random_start:
             adv_data = adv_data + \
                 torch.empty_like(adv_data).uniform_(-self.eps, self.eps)
             adv_data = torch.clamp(adv_data, min=-1, max=1).detach()
         
+        logger_arr = []
         for _ in range(self.steps):
             adv_data.requires_grad = True
             outputs = self.get_logits(adv_data)
@@ -42,7 +44,11 @@ class PGDLinf(Attack):
                 raise NotImplementedError
             else:
                 cost = loss(outputs, labels)
-            
+                # Log it as (step_no, batch_loss, correct_pred_count, batch_size) for each step
+                logger_arr.append([cost.item()*batch_size,
+                                   (outputs.squeeze().argmax()==labels.squeeze()).sum().item(),
+                                   batch_size])
+                
             # Update adversarial data
             grad = torch.autograd.grad(cost, adv_data,
                                        retain_graph=False, create_graph=False)[0]
@@ -51,6 +57,16 @@ class PGDLinf(Attack):
             delta = torch.clamp(adv_data - data,
                                 min=-self.eps, max=self.eps)
             adv_data = torch.clamp(data + delta, min=-1, max=1).detach()
+            
+            
+        with torch.no_grad():
+            outputs = self.get_logits(adv_data)
+            cost = loss(outputs.squeeze(), labels.squeeze())
+            # Log it as (step_no, batch_loss, correct_pred_count, batch_size) for each step
+            logger_arr.append([cost.item()*batch_size,
+                               (outputs.squeeze().argmax()==labels.squeeze()).sum().item(),
+                               batch_size])
+            self.logger.append(logger_arr)
         return adv_data
             
             

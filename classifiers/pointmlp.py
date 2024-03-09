@@ -285,7 +285,7 @@ class PointMLP(nn.Module):
     def __init__(self, points=1024, output_channels=12, embed_dim=64, groups=1, res_expansion=1.0,
                  activation="relu", bias=False, use_xyz=False, normalize="anchor",
                  dim_expansion=[2, 2, 2, 2], pre_blocks=[2, 2, 2, 2], pos_blocks=[2, 2, 2, 2],
-                 k_neighbors=[24, 24, 24, 24], reducers=[2, 2, 2, 2], **kwargs):
+                 k_neighbors=[24, 24, 24, 24], reducers=[2, 2, 2, 2], pretrained=False, **kwargs):
         super(PointMLP, self).__init__()
         self.stages = len(pre_blocks)
         self.class_num = output_channels
@@ -334,8 +334,15 @@ class PointMLP(nn.Module):
         )
 
         # Load 
-        # self.load_pretrained()
-        # self.eval()
+        self.pretrained = pretrained
+        if self.pretrained is not False:
+            if self.pretrained is True:
+                dataset_name = 'coma_trained'
+            else:
+                dataset_name = self.pretrained
+            self.load_pretrained(dataset_name=dataset_name)
+            print("Loaded pretrained model!")
+            self.eval()
 
     def forward(self, x):
         xyz = x.permute(0, 2, 1)
@@ -381,14 +388,19 @@ class PointMLP(nn.Module):
         x = self.classifier(x)
         return x, layer_data
     
-    def load_pretrained(self, model_name="best_checkpoint.pth", root=dirname(abspath(__file__)) ):
-        assert model_name in ["best_checkpoint.pth"]
-
-        weight_paths = download_pointmlp(root)
-        weights = torch.load(weight_paths[model_name])
-        weights = weights['net']
-        weights = {k[7:]:v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
-        self.load_state_dict(weights)
+    def load_pretrained(self, dataset_name, model_name="best_pointmlp.pt", root=dirname(abspath(__file__)) ):
+        assert dataset_name in ["coma_trained", "bosphorus_trained", "facewarehouse_trained"]
+        assert model_name in ["best_pointmlp.pt"]
+        # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
+        weight_paths = os.path.join(*[root, "pretrained", dataset_name, model_name])
+        weights = torch.load(weight_paths)
+        # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
+        
+        # Partial load
+        model_dict = self.state_dict()
+        weights = {k:v for k, v in weights.items() if k in model_dict}
+        model_dict.update(weights)
+        self.load_state_dict(model_dict)
         
 def download_pointmlp(root):
     weight_paths = {}

@@ -1,0 +1,2 @@
+Best test acc: 0.88958340883255
+Epoch : 426

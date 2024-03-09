@@ -19,6 +19,8 @@ class Attack(object):
         self.seed = seed
         self.device = device
         if seed is not None: seed_all(seed)
+        # Logger to list acc per step
+        self.logger = []
         
     def attack(self):
         raise NotImplementedError
@@ -50,6 +52,14 @@ class Attack(object):
                 raise NotImplementedError
             # Add each instance to total list
             attacked_batches.extend([{key:batch[key][i] for key in batch} for i in range(pc.shape[0])])
+            
+        if self.logger == []:
+            loss_per_step, acc_per_step = None, None
+        else:
+            # (no_of_batches, no_of_steps, 3)->(no_of_steps, 3), Last axis: [Total Loss, TP Count, Data Count]
+            logger_lists = np.array(self.logger).sum(axis=0)
+            loss_per_step = (logger_lists[:,0]/logger_lists[:,2]).tolist()
+            acc_per_step = (logger_lists[:,1]/logger_lists[:,2]).tolist()
             
         clean_acc = accuracy_score(np.concatenate(true_labels), np.concatenate(clean_preds))
         attack_acc = accuracy_score(np.concatenate(true_labels), np.concatenate(attack_preds))
@@ -83,7 +93,10 @@ class Attack(object):
             # Dump args as .json, pass a dictionary (even empty one) to save additional args
             if args != None:
                 with open(FILE_NAME+'.json', 'w') as fp:
-                    args |= {"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc}
+                    # append followint to the dictonary
+                    # args |= ({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc}) # Python 3.9+
+                    args.update({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc,
+                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step})
                     json.dump(args, fp, indent=4)
             
         return attacked_batches

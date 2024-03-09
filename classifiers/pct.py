@@ -30,7 +30,7 @@ class Local_op(nn.Module):
         return x
 
 class Pct(nn.Module):
-    def __init__(self, args=AttrDict({"dropout": 0.5}), output_channels=12):
+    def __init__(self, args=AttrDict({"dropout": 0.5}), output_channels=12, pretrained=False):
         super(Pct, self).__init__()
         self.args = args
         self.conv1 = nn.Conv1d(3, 64, kernel_size=1, bias=False)
@@ -56,8 +56,15 @@ class Pct(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
 
         # Load 
-        # self.load_pretrained()
-        # self.eval()
+        self.pretrained = pretrained
+        if self.pretrained is not False:
+            if self.pretrained is True:
+                dataset_name = 'coma_trained'
+            else:
+                dataset_name = self.pretrained
+            self.load_pretrained(dataset_name=dataset_name)
+            print("Loaded pretrained model!")
+            self.eval()
 
 
     def forward(self, x):
@@ -133,12 +140,19 @@ class Pct(nn.Module):
         return x, layer_data
 
     
-    def load_pretrained(self, model_name="model.t7", root=dirname(abspath(__file__)) ):
-        assert model_name in ["model.t7"]
-        weight_paths = download_pct(root)
-        weights = torch.load(weight_paths[model_name])
-        weights = {k[7:]:v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
-        self.load_state_dict(weights)
+    def load_pretrained(self, dataset_name, model_name="best_pct.pt", root=dirname(abspath(__file__)) ):
+        assert dataset_name in ["coma_trained", "bosphorus_trained", "facewarehouse_trained"]
+        assert model_name in ["best_pct.pt"]
+        # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
+        weight_paths = os.path.join(*[root, "pretrained", dataset_name, model_name])
+        weights = torch.load(weight_paths)
+        # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
+        
+        # Partial load
+        model_dict = self.state_dict()
+        weights = {k:v for k, v in weights.items() if k in model_dict}
+        model_dict.update(weights)
+        self.load_state_dict(model_dict)
         
 def download_pct(root):
     weight_paths = {}

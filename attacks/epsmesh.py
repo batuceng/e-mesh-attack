@@ -32,6 +32,8 @@ class EpsMeshAttack(object):
         self.steps = steps
         self.random_start = random_start
         self.stepscale = 5
+        # Logger to list acc per step
+        self.logger = []
         # Set seed
         self.seed = seed
         if seed is not None: seed_all(seed)
@@ -57,6 +59,7 @@ class EpsMeshAttack(object):
         adv_data = data.clone().detach()
         batch_size = data.shape[0]
         
+        logger_arr = []
         for _ in range(self.steps):
             adv_data.requires_grad = True
             outputs = self.get_logits(adv_data)
@@ -67,7 +70,11 @@ class EpsMeshAttack(object):
                 raise NotImplementedError
             else:
                 cost = loss(outputs.squeeze(), labels.squeeze())
-            
+                # Log it as (step_no, batch_loss, correct_pred_count, batch_size) for each step
+                logger_arr.append([cost.item()*batch_size,
+                                   (outputs.squeeze().argmax()==labels.squeeze()).sum().item(),
+                                   batch_size])
+                
             # Update adversarial images
             grad = torch.autograd.grad(cost, adv_data,
                                        retain_graph=False, create_graph=False)[0]
@@ -99,6 +106,14 @@ class EpsMeshAttack(object):
             # adv_data = torch.clamp(data + delta, min=-1, max=1).detach()
             adv_data = intersection.detach()
 
+        with torch.no_grad():
+            outputs = self.get_logits(adv_data)
+            cost = loss(outputs.squeeze(), labels.squeeze())
+            # Log it as (step_no, batch_loss, correct_pred_count, batch_size) for each step
+            logger_arr.append([cost.item()*batch_size,
+                               (outputs.squeeze().argmax()==labels.squeeze()).sum().item(),
+                               batch_size])
+            self.logger.append(logger_arr)
         return adv_data
     
     # Dot product between for batched tensors a & b along dimension d. a: (B,N,d), b: (B,N,d), out: (B,N,1)
@@ -240,6 +255,7 @@ class EpsMeshAttack(object):
             # Forward
             logits = self.get_logits(pc)
             adv_data = self.attack(data=pc.clone(), labels=label, meshvectors=meshvectors, meshnormals=meshnormals)
+            
             # Check attack
             attacked_logits = self.get_logits(adv_data)
             # Store for Acc Stats
@@ -256,6 +272,13 @@ class EpsMeshAttack(object):
                 raise NotImplementedError
             # Add each instance to total list
             attacked_batches.extend([{key:batch[key][i] for key in batch} for i in range(pc.shape[0])])
+        
+        # (no_of_batches, no_of_steps, 3)->(no_of_steps, 3), Last axis: [Total Loss, TP Count, Data Count]
+        logger_lists = np.array(self.logger).sum(axis=0)
+        loss_per_step = (logger_lists[:,0]/logger_lists[:,2]).tolist()
+        acc_per_step = (logger_lists[:,1]/logger_lists[:,2]).tolist()
+        
+        
         clean_acc = accuracy_score(np.concatenate(true_labels), np.concatenate(clean_preds))
         attack_acc = accuracy_score(np.concatenate(true_labels), np.concatenate(attack_preds))
         datasetname, modelname = dataloader.dataset.__class__.__name__, self.model.__class__.__name__
@@ -278,7 +301,10 @@ class EpsMeshAttack(object):
             # Dump args as .json, pass a dictionary (even empty one) to save additional args
             if args != None:
                 with open(FILE_NAME+'.json', 'w') as fp:
-                    args |= {"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc}
+                    # append followint to the dictonary
+                    # args |= {"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc} # Python 3.9+
+                    args.update({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc,
+                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step})
                     json.dump(args, fp, indent=4)
             
         return attacked_batches

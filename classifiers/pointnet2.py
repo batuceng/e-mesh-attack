@@ -20,7 +20,7 @@ def download_pointnet2(root):
     return weight_paths
 
 class PointNet2_cls(nn.Module):
-    def __init__(self,output_channels=12,normal_channel=False):
+    def __init__(self,output_channels=12,normal_channel=False, pretrained=False):
         super(PointNet2_cls, self).__init__()
         in_channel = 6 if normal_channel else 3
         self.normal_channel = normal_channel
@@ -35,9 +35,16 @@ class PointNet2_cls(nn.Module):
         self.drop2 = nn.Dropout(0.4)
         self.fc3 = nn.Linear(256, output_channels)
         
-        # Load
-        # self.load_pretrained()
-        # self.eval()
+        # Load 
+        self.pretrained = pretrained
+        if self.pretrained is not False:
+            if self.pretrained is True:
+                dataset_name = 'coma_trained'
+            else:
+                dataset_name = self.pretrained
+            self.load_pretrained(dataset_name=dataset_name)
+            print("Loaded pretrained model!")
+            self.eval()
 
     def forward(self, xyz):
         B, _, _ = xyz.shape
@@ -94,11 +101,19 @@ class PointNet2_cls(nn.Module):
 
         return x, layer_data
     
-    def load_pretrained(self, model_name="best_model.pth", root=dirname(abspath(__file__)) ):
-        assert model_name in ["best_model.pth"]
-        weight_paths = download_pointnet2(root)
-        weights = torch.load(weight_paths[model_name])
-        self.load_state_dict(weights['model_state_dict'])
+    def load_pretrained(self, dataset_name, model_name="best_pointnet2.pt", root=dirname(abspath(__file__)) ):
+        assert dataset_name in ["coma_trained", "bosphorus_trained", "facewarehouse_trained"]
+        assert model_name in ["best_pointnet2.pt"]
+        # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
+        weight_paths = os.path.join(*[root, "pretrained", dataset_name, model_name])
+        weights = torch.load(weight_paths)
+        # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
+        
+        # Partial load
+        model_dict = self.state_dict()
+        weights = {k:v for k, v in weights.items() if k in model_dict}
+        model_dict.update(weights)
+        self.load_state_dict(model_dict)
     
 
 # PointNet++ utils

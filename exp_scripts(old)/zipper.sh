@@ -1,0 +1,1 @@
+zip -r myarchive.zip . -x ./runs/**\* ./Bosphorus_stl/**\* ./*_attacked_old/**\*

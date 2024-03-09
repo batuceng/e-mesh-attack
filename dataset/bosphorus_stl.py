@@ -65,12 +65,12 @@ def load_data_cls(partition, process_type):
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = Path("./Bosphorus_stl")
+    DATA_DIR = Path("./Bosphorus12K")
 
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for i, single_path in enumerate(sorted(DATA_DIR.glob('**/*_E_*.stl'))):
-        print(i, single_path)
+        # print(i, single_path)
         person_name = single_path.stem.split("_E_")[0]
         # Check if the person is the selected TRAIN/TEST Set
         if person_name not in selected_set: continue

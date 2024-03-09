@@ -1,0 +1,12 @@
+{
+    "batch_size": 1,
+    "num_workers": 1,
+    "z_filter": true,
+    "model": "dgcnn",
+    "dataset": "facewarehouse",
+    "lr": 0.001,
+    "wd": 1e-05,
+    "lr_step_size": 25,
+    "lr_decay": 0.95,
+    "seed": 1
+}

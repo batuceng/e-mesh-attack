@@ -8,6 +8,8 @@ from copy import copy
 from torch.utils.data import Dataset
 import random
 from stl import mesh
+from pathlib import Path
+import pathlib
 
 LABELS = ['bareteeth', 'cheeks_in', 'eyebrow', 'high_smile',
           'lips_back', 'lips_up', 'mouth_down', 'mouth_extreme',
@@ -60,14 +62,15 @@ def load_data_cls(partition, process_type):
     assert process_type in ['eyeless', 'front']
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     # DATA_DIR = os.path.join(BASE_DIR, 'data', 'Coma_peaks')
-    DATA_DIR = os.path.abspath("/mnt/disk5/batu/myprojects/e-mesh-attack/coma_expanded_2")
+    DATA_DIR = Path("./coma_expanded_2")
 
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
     for folder in selected_set:
         for label_type in LABELS:
-            file_dir = os.path.join(*[DATA_DIR, folder, label_type])
-            file_path = glob.glob(file_dir+f'/*{process_type}.stl')[0]
+            file_dir = DATA_DIR / folder / label_type
+            # print(file_dir)
+            file_path = glob.glob(file_dir.resolve().as_posix() + f'/*{process_type}.stl')[0]
             mesh_data = mesh.Mesh.from_file(file_path)
             all_data.append({
                 'meshvectors': mesh_data.vectors,

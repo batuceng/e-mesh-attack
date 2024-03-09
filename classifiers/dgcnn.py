@@ -47,7 +47,7 @@ def get_graph_feature(x: torch.tensor, k: int = 20, idx=None, dim9=False):
 
 class DGCNN_cls(nn.Module):
     def __init__(self, args=AttrDict({"emb_dims":1024,"k":20,"dropout":0.5}) , 
-                 output_channels=12, pretrained=False):
+                 output_channels=20, pretrained=False):
         super(DGCNN_cls, self).__init__()
         self.args = args
         self.k = args.k
@@ -82,8 +82,12 @@ class DGCNN_cls(nn.Module):
         self.linear3 = nn.Linear(256, output_channels)
         self.pretrained = pretrained
         # Load 
-        if self.pretrained:
-            self.load_pretrained()
+        if self.pretrained is not False:
+            if self.pretrained is True:
+                dataset_name = 'coma_trained'
+            else:
+                dataset_name = self.pretrained
+            self.load_pretrained(dataset_name=dataset_name)
             print("Loaded pretrained model!")
             self.eval()
 
@@ -109,17 +113,6 @@ class DGCNN_cls(nn.Module):
  
         x = self.conv5(x)                       # (batch_size, 64+64+128+256, num_points) -> (batch_size, emb_dims, num_points)
         
-            
-        # #Train drop point
-        
-        # if (self.training):
-        #     pointcount = x.shape[2]
-        #     randomly_selected_ids = torch.randperm(pointcount)[0:pointcount*60//100]
-        #     #print(randomly_selected_ids)
-            
-        #     x = x[:,:,randomly_selected_ids]
-
-        
         
         x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)           # (batch_size, emb_dims, num_points) -> (batch_size, emb_dims)
@@ -136,10 +129,11 @@ class DGCNN_cls(nn.Module):
     
 
 
-    def load_pretrained(self, model_name="best_dgcnn.pt", root=dirname(abspath(__file__)) ):
+    def load_pretrained(self, dataset_name, model_name="best_dgcnn.pt", root=dirname(abspath(__file__)) ):
+        assert dataset_name in ["coma_trained", "bosphorus_trained", "facewarehouse_trained"]
         assert model_name in ["best_dgcnn.pt"]
         # assert model_name in ["model.cls.1024.t7", "model.cls.2048.t7"]
-        weight_paths = os.path.join(*[root, "pretrained", model_name])
+        weight_paths = os.path.join(*[root, "pretrained", dataset_name, model_name])
         weights = torch.load(weight_paths)
         # weights = {v for (k,v) in weights.items()} # Remove 'module' prefix from all keys. Added due to nn.DataParalel on pretrainig
         
