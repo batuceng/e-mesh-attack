@@ -2,6 +2,7 @@ import numpy as np
 import os
 import json
 import random
+import time
 
 import torch
 import torch.nn as nn
@@ -244,6 +245,8 @@ class EpsMeshAttack(object):
     def save(self, dataloader, root=os.path.join(dirname(abspath(__file__)), "data_attacked"), file_name=None, args=None):
         true_labels, clean_preds, attack_preds = [], [], []
         attacked_batches = []
+        attack_time_per_sample_s = []
+        total_time_per_sample_s = []
         for i,batch in enumerate(dataloader):
             print(f"batch {i}/{len(dataloader)}")
             pc, label = batch['pc'], batch['cate']
@@ -253,11 +256,20 @@ class EpsMeshAttack(object):
             shift = batch["shift"]
             scale = batch["scale"]
             # Forward
+            bs = int(pc.shape[0])
+            t0 = time.perf_counter()
             logits = self.get_logits(pc)
+            t_attack0 = time.perf_counter()
             adv_data = self.attack(data=pc.clone(), labels=label, meshvectors=meshvectors, meshnormals=meshnormals)
-            
+            t_attack1 = time.perf_counter()
+             
             # Check attack
             attacked_logits = self.get_logits(adv_data)
+            t1 = time.perf_counter()
+
+            if bs > 0:
+                attack_time_per_sample_s.extend([(t_attack1 - t_attack0) / bs] * bs)
+                total_time_per_sample_s.extend([(t1 - t0) / bs] * bs)
             # Store for Acc Stats
             true_labels.append(label.detach().cpu().numpy())
             clean_preds.append(logits.detach().cpu().numpy().argmax(axis=1))
@@ -284,7 +296,17 @@ class EpsMeshAttack(object):
         datasetname, modelname = dataloader.dataset.__class__.__name__, self.model.__class__.__name__
         print(f"Clean Acc:{clean_acc} on dset:{datasetname} model:{modelname} atk:{self.name}")
         print(f"Attacked Acc:{attack_acc} on dset:{datasetname} model:{modelname} atk:{self.name}")
-        
+
+        if len(attack_time_per_sample_s) > 0:
+            atk_mean = float(np.mean(attack_time_per_sample_s))
+            atk_std = float(np.std(attack_time_per_sample_s))
+            tot_mean = float(np.mean(total_time_per_sample_s))
+            tot_std = float(np.std(total_time_per_sample_s))
+            print(f"Avg Attack Time (per sample): {atk_mean:.4f}s \u00b1 {atk_std:.4f}s (n={len(attack_time_per_sample_s)})")
+            print(f"Avg Total Time  (per sample): {tot_mean:.4f}s \u00b1 {tot_std:.4f}s (n={len(total_time_per_sample_s)})")
+        else:
+            atk_mean = atk_std = tot_mean = tot_std = None
+         
         # Write to root. Do not save if root is None!
         if root != None:
             DATA_DIR = root
@@ -304,9 +326,11 @@ class EpsMeshAttack(object):
                     # append followint to the dictonary
                     # args |= {"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc} # Python 3.9+
                     args.update({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc,
-                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step})
+                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step,
+                                 "avg_attack_time_s": atk_mean, "std_attack_time_s": atk_std,
+                                 "avg_total_time_s": tot_mean, "std_total_time_s": tot_std})
                     json.dump(args, fp, indent=4)
-            
+             
         return attacked_batches
     
     def __str__(self):

@@ -80,7 +80,7 @@ def load_data_cls(partition, process_type):
 
     all_data = []
     selected_set = TRAIN_SET if partition=='train' else TEST_SET
-    for i, single_path in enumerate(sorted(DATA_DIR.glob('*/*/*.stl'))):
+    for i, single_path in enumerate(sorted(DATA_DIR.glob('*/*/pose_*.stl'))):
         #print(i, single_path)
         person_name = single_path.parent.parent.stem
         # Check if the person is the selected TRAIN/TEST Set

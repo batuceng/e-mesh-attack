@@ -5,6 +5,7 @@ import os
 from os.path import dirname, abspath
 import random
 import json
+import time
 
 def seed_all(seed):
     torch.manual_seed(seed)
@@ -32,14 +33,27 @@ class Attack(object):
     def save(self, dataloader, root=os.path.join(dirname(dirname(abspath(__file__))), "data_attacked"), file_name=None, args=None):
         true_labels, clean_preds, attack_preds = [], [], []
         attacked_batches = []
+        # Wall-clock timing. We report per-sample averages to match typical "attack runtime" tables.
+        attack_time_per_sample_s = []
+        total_time_per_sample_s = []
         for i,batch in enumerate(dataloader):
             print(f"batch {i}/{len(dataloader)}")
             pc, label = batch['pc'], batch['cate']
+            bs = int(pc.shape[0])
+            t0 = time.perf_counter()
             # Forward
             logits = self.get_logits(pc)
+            t_attack0 = time.perf_counter()
             adv_data = self.attack(data=pc, labels=label)
+            t_attack1 = time.perf_counter()
             # Check attack
             attacked_logits = self.get_logits(adv_data)
+            t1 = time.perf_counter()
+
+            # Normalize by batch size so results are comparable even if bs != 1.
+            if bs > 0:
+                attack_time_per_sample_s.append((t_attack1 - t_attack0) / bs)
+                total_time_per_sample_s.append((t1 - t0) / bs)
             # Store for Acc Stats
             true_labels.append(label.detach().cpu().numpy())
             clean_preds.append(logits.detach().cpu().numpy().argmax(axis=1))
@@ -66,6 +80,16 @@ class Attack(object):
         datasetname, modelname = dataloader.dataset.__class__.__name__, self.model.__class__.__name__
         print(f"Clean Acc:{clean_acc} on dset:{datasetname} model:{modelname} atk:{self.name}")
         print(f"Attacked Acc:{attack_acc} on dset:{datasetname} model:{modelname} atk:{self.name}")
+
+        if len(attack_time_per_sample_s) > 0:
+            atk_mean = float(np.mean(attack_time_per_sample_s))
+            atk_std = float(np.std(attack_time_per_sample_s))
+            tot_mean = float(np.mean(total_time_per_sample_s))
+            tot_std = float(np.std(total_time_per_sample_s))
+            print(f"Avg Attack Time (per sample): {atk_mean:.4f}s \u00b1 {atk_std:.4f}s (n={len(attack_time_per_sample_s)})")
+            print(f"Avg Total Time  (per sample): {tot_mean:.4f}s \u00b1 {tot_std:.4f}s (n={len(total_time_per_sample_s)})")
+        else:
+            atk_mean = atk_std = tot_mean = tot_std = None
         
         # Write to root. Do not save if root is None!
         if root != None:
@@ -96,7 +120,9 @@ class Attack(object):
                     # append followint to the dictonary
                     # args |= ({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc}) # Python 3.9+
                     args.update({"data_path": FILE_NAME, "clean_acc": clean_acc, "attack_acc": attack_acc,
-                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step})
+                                 "loss_curve": loss_per_step, "acc_curve:": acc_per_step,
+                                 "avg_attack_time_s": atk_mean, "std_attack_time_s": atk_std,
+                                 "avg_total_time_s": tot_mean, "std_total_time_s": tot_std})
                     json.dump(args, fp, indent=4)
             
         return attacked_batches
